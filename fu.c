@@ -317,6 +317,7 @@ state_create(int *data_count, FILE *bin_file, FILE *fu_file) {
   state->fetch_lock = FALSE;
   state->control_stall = FALSE;
   state->halt_activated = FALSE;
+  state->end_simulation = FALSE;
   return state;
 }
 
@@ -649,42 +650,133 @@ void
 perform_operation(int instr, unsigned long pc, operand_t operand1,
 		  operand_t operand2)
 {
-  const op_info_t *op_info;
+// void
+// perform_write(state_t * state, int instr, unsigned long pc) {
   int use_imm;
+  const op_info_t *op_info = decode_instr(instr, &use_imm);;
   operand_t result;
 
-  op_info = decode_instr(instr, &use_imm);
+  int opcode = FIELD_OPCODE(instr);
+  int func = FIELD_FUNC(instr);
+  int r1 = FIELD_R1(instr);
+  int r2 = FIELD_R2(instr);
+  int r3 = FIELD_R3(instr);
+  int imm = FIELD_IMM(instr);
+  int immu = FIELD_IMMU(instr); 
+  int offset = FIELD_OFFSET(instr);
+  
+
   switch(op_info->fu_group_num) {
-  case FU_GROUP_INT:
-    switch(op_info->operation) {
-    case OPERATION_ADD:
-      result.integer.w = operand1.integer.w + operand2.integer.w;
+    /******************************** INT */ 
+    case FU_GROUP_INT:
+      // switch(op_info->operation) {
+      //   case OPERATION_ADD:
+      //     //result.integer.w = operand1.integer.w + operand2.integer.w;
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] + state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] + imm;}
+      //     break;
+      //   case OPERATION_ADDU:
+      //     break;
+      //   case OPERATION_SUB:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] - state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] - imm;}
+      //     break;
+      //   case OPERATION_SUBU:
+      //     break;
+      //   case OPERATION_SLL:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] << state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] << imm;}
+      //     break;
+      //   case OPERATION_SRL:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] >> state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] >> imm;}
+      //     break;
+      //   case OPERATION_AND:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] & state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] & imm;}
+      //     break;
+      //   case OPERATION_OR:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] | state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] | imm;}
+      //     break;
+      //   case OPERATION_XOR:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] ^ state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] ^ imm;}
+      //     break;
+      //   case OPERATION_SLT:
+      //     if (use_imm == 0) {if (state->rf_int[r1] < state->rf_int[r2]) {state->rf_int[r3] = 1;} else {state->rf_int[r3] = 0;} }
+      //     if (use_imm == 0) {if (state->rf_int[r1] < imm) {state->rf_int[r3] = 1;} else {state->rf_int[r3] = 0;} }
+      //     break;
+      //   case OPERATION_SGT:
+      //     if (use_imm == 0) {if (state->rf_int[r1] > state->rf_int[r2]) {state->rf_int[r3] = 1;} else {state->rf_int[r3] = 0;} }
+      //     if (use_imm == 0) {if (state->rf_int[r1] > imm) {state->rf_int[r3] = 1;} else {state->rf_int[r3] = 0;} }
+      //     break;
+      //   case OPERATION_SLTU:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] - state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] - imm;}
+      //     break;
+      //   case OPERATION_SGTU:
+      //     if (use_imm == 0) {state->rf_int[r3] = state->rf_int[r1] - state->rf_int[r2];}
+      //     if (use_imm == 1) {state->rf_int[r2] = state->rf_int[r1] - imm;}
+      //     break;
+        
+      // }
       break;
-    }
-    break;
 
-  case FU_GROUP_ADD:
-    //switch for add.s and sub.s
-    break;
-  case FU_GROUP_MULT:
-    break;
-  case FU_GROUP_DIV:
-    break;
+    /******************************** ADD */
+    case FU_GROUP_ADD:
+      //switch for add.s and sub.s
+      break;
 
-  case FU_GROUP_MEM:
-    break;
+    /******************************** MULT */
+    case FU_GROUP_MULT:
+  
+      break;
+    /******************************** DIV */
+    case FU_GROUP_DIV:
+  
+      break;
 
-  case FU_GROUP_BRANCH:
-    break;
+    /******************************** MEM */
+    case FU_GROUP_MEM:
+      // switch(op_info->operation){
+      //   case OPERATION_LOAD:
+      //     switch (op_info->data_type){
+      //       case DATA_TYPE_W:
+      //         state->rf_int.reg_int[r2] = state->rf_int.reg_int[r1] + imm;
+      //         break;
+      //       case DATA_TYPE_F:
+      //         break;
+      //       }
+      //     break; 
+      //   case OPERATION_STORE:
+      //     switch (op_info->data_type){
+      //       case DATA_TYPE_W:
+      //         break;
+      //       case DATA_TYPE_F:
+      //         break;
+      //     }
+      //     break;
+      // }
+      break;
 
-  case FU_GROUP_HALT:
-    break;
+    /******************************** CONTROL */
+    case FU_GROUP_BRANCH:
+  
+      break;
 
-  case FU_GROUP_NONE:
-    break;
+    /******************************** HALT */
+    case FU_GROUP_HALT:
+  
+      break;
 
-  case FU_GROUP_INVALID:
-    fprintf(stderr, "error: invalid opcode (instr = %.8X)\n", instr);
+    /******************************** NOP */
+    case FU_GROUP_NONE:
+  
+      break;
+
+    case FU_GROUP_INVALID:
+      fprintf(stderr, "error: invalid opcode (instr = %.8X)\n", instr);
   }
 
 }

@@ -53,6 +53,7 @@ typedef struct _state_t {
   int stalled_inst; 
   int stall_counter;
   int halt_activated;
+  int end_simulation;
   
 } state_t;
 

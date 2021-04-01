@@ -47,7 +47,7 @@ main(int argc, char *argv[]) {
   fclose(fu_file);
   printf("\n\n******************************************** START ********************************************\n");
   /* main sim loop */
-  //for (i = 0, num_insn = 0; TRUE; i++) {
+  //for (i = 0, num_insn = 0; state->end_simulation == FALSE; i++) {
   for (i = 0, num_insn = 0; i<8; i++) {
     printf("\n\n*** CYCLE %d\n", i);
     print_state(state, data_count);
@@ -59,7 +59,10 @@ main(int argc, char *argv[]) {
       fetch(state);
     }
   }
-
+  printf("\n\n*** CYCLE %d\n", i);
+  print_state(state, data_count);
+  // final increment for the halt insctruction
+  num_insn++;
   printf("SIMULATION COMPLETE!\n");
   printf("EXECUTED %d INSTRUCTIONS IN %d CYCLES\n", num_insn, i);
   printf("CPI:  %.2f\n", (float)i / (float)num_insn);
