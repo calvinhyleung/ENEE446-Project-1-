@@ -45,10 +45,10 @@ main(int argc, char *argv[]) {
 
   fclose(bin_file);
   fclose(fu_file);
-
+  printf("\n\n******************************************** START ********************************************\n");
   /* main sim loop */
   //for (i = 0, num_insn = 0; TRUE; i++) {
-  for (i = 0, num_insn = 0; i<4; i++) {
+  for (i = 0, num_insn = 0; i<8; i++) {
     printf("\n\n*** CYCLE %d\n", i);
     print_state(state, data_count);
 

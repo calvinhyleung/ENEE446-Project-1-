@@ -315,7 +315,8 @@ state_create(int *data_count, FILE *bin_file, FILE *fu_file) {
   state->fp_wb.instr = 0/*NOP*/;
 
   state->fetch_lock = FALSE;
-
+  state->control_stall = FALSE;
+  state->halt_activated = FALSE;
   return state;
 }
 

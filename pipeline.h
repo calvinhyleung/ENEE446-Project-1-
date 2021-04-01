@@ -48,6 +48,12 @@ typedef struct _state_t {
   wb_t fp_wb;
 
   int fetch_lock;
+
+  int control_stall;
+  int stalled_inst; 
+  int stall_counter;
+  int halt_activated;
+  
 } state_t;
 
 extern state_t *state_create(int *, FILE *, FILE *);
