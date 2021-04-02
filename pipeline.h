@@ -8,6 +8,17 @@
 #define TRUE 1
 #define FALSE 0
 
+#define INT_DEST_AT_2 1
+#define INT_DEST_AT_3 2
+#define FP_DEST_AT_2 3
+#define FP_DEST_AT_3 4
+
+#define INT_SOURCE_ONE 1
+#define INT_SOURCE_TWO 2
+#define FP_SOURCE_ONE 3
+#define FP_SOURCE_TWO 4
+#define BOTH_SOURCE 5
+
 
 /* fetch/decode pipeline register */
 typedef struct _if_id_t {

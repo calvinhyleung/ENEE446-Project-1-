@@ -208,16 +208,19 @@ int destination_extract(int inst){
     const op_info_t *op_info = decode_instr(inst, &use_imm); 
     switch(op_info->fu_group_num) {
         case FU_GROUP_INT:
-            if (use_imm == 0) { return FIELD_R3(inst); } 
-            if (use_imm == 1) { return FIELD_R2(inst); } 
+            if (use_imm == 0) { return INT_DEST_AT_3; } 
+            if (use_imm == 1) { return INT_DEST_AT_2; } 
         break; 
         case FU_GROUP_ADD:
         case FU_GROUP_MULT:
         case FU_GROUP_DIV:
-            return FIELD_R3(inst);
+            return FP_DEST_AT_3;
         break;
         case FU_GROUP_MEM:
-            if (op_info->operation == OPERATION_LOAD) { return FIELD_R2(inst); }
+            if (op_info->operation == OPERATION_LOAD) { 
+                if (op_info->data_type == DATA_TYPE_W){ return INT_DEST_AT_2; }
+                if (op_info->data_type == DATA_TYPE_F){ return FP_DEST_AT_2; } 
+            }
             if (op_info->operation == OPERATION_STORE) { return -1; }
         break;
     } 
@@ -230,18 +233,27 @@ int source_extract(int inst){
     const op_info_t *op_info = decode_instr(inst, &use_imm); 
     switch(op_info->fu_group_num) {
         case FU_GROUP_INT:
-            if (use_imm == 0) { return 2; } 
-            if (use_imm == 1) { return 1; } 
-        break; 
+            if (use_imm == 0) { return INT_SOURCE_TWO; } 
+            if (use_imm == 1) { return INT_SOURCE_ONE; } 
+            break; 
         case FU_GROUP_ADD:
         case FU_GROUP_MULT:
         case FU_GROUP_DIV:
-            return 2;
-        break;
+            return FP_SOURCE_TWO;
+            break;
         case FU_GROUP_MEM:
-            if (op_info->operation == OPERATION_LOAD) { return 1; }
-            if (op_info->operation == OPERATION_STORE) { return 2; }
-        break;
+            if (op_info->operation == OPERATION_LOAD) { 
+                return INT_SOURCE_ONE;
+            }
+            if (op_info->operation == OPERATION_STORE) { 
+                if (op_info->data_type == DATA_TYPE_W){
+                    return INT_SOURCE_TWO;
+                }
+                if (op_info->data_type == DATA_TYPE_F){
+                    return BOTH_SOURCE;
+                }  
+            }
+            break;
     } 
 
 } 
@@ -286,60 +298,151 @@ int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
     return stall_for_WAW_count;
 }
 
+int check_dependancy(int curr_inst, int prev_inst){
+    int source_type = source_extract(curr_inst);
+    int dest_type = destination_extract(prev_inst);
+    printf("dest type: %d, source type: %d\n", dest_type, source_type);
+    switch (source_type)
+    {
+    case INT_SOURCE_ONE:
+        switch (dest_type){
+            case INT_DEST_AT_2:
+                printf("INT_SOURCE_ONE and INT_DEST_AT_2\n");
+                printf("fields: %d, %d\n", FIELD_R2(prev_inst), FIELD_R1(curr_inst));
+                if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
+                break;
+            case INT_DEST_AT_3:
+                printf("INT_SOURCE_ONE and INT_DEST_AT_3\n");
+                printf("fields: %d, %d\n", FIELD_R3(prev_inst), FIELD_R1(curr_inst));
+                if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
+                break;
+            case FP_DEST_AT_2:
+            case FP_DEST_AT_3:
+                return FALSE;
+                break;
+        }
+        break;
+    case INT_SOURCE_TWO:
+        switch (dest_type){
+            case INT_DEST_AT_2:
+                printf("INT_SOURCE_TWO and INT_DEST_AT_2\n");
+                if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst) || FIELD_R2(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
+                break;
+            case INT_DEST_AT_3:
+                printf("INT_SOURCE_TWO and INT_DEST_AT_3\n");
+                if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst) || FIELD_R3(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
+                break;
+            case FP_DEST_AT_2:
+            case FP_DEST_AT_3:
+                return FALSE;
+                break;
+        }
+        break;
+    case FP_SOURCE_ONE:
+        switch (dest_type){
+            case INT_DEST_AT_2:
+            case INT_DEST_AT_3:
+                return FALSE;
+                break;
+            case FP_DEST_AT_2:
+                if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
+                break;
+            case FP_DEST_AT_3:
+                if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
+                break;
+        }
+        break;
+    case FP_SOURCE_TWO:
+        switch (dest_type){
+            case INT_DEST_AT_2:
+            case INT_DEST_AT_3:
+                return FALSE;
+                break;
+            case FP_DEST_AT_2:
+                if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst) || FIELD_R2(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
+                break;
+            case FP_DEST_AT_3:
+                if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst) || FIELD_R3(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
+                break;
+        }
+        break;
+    case BOTH_SOURCE: // both source meaning r2 is FP and r1 is INT
+        switch (dest_type){
+            case INT_DEST_AT_2:
+                if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
+                break;
+            case INT_DEST_AT_3:
+                if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
+                break;
+            case FP_DEST_AT_2:
+                if (FIELD_R2(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
+                break;
+            case FP_DEST_AT_3:
+                if (FIELD_R3(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
+                break;
+        }
+        break;
+    // default:
+    //     return FALSE;
+    }
+    return FALSE;
+    
+}
+
 int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
     printf("FINDING RAW\n");
     int R1 = FIELD_R1(inst);
     int R2 = FIELD_R2(inst);
     int R3 = FIELD_R3(inst);
+    // int use_imm;
+    // const op_info_t *op_info_curr = decode_instr(inst, &use_imm);
+    // const op_info_t *op_info_prev = decode_instr(inst, &use_imm);
+    // op_info_curr->data_type;
+    // op_info_prev->data_type;
+
     int stall_for_RAW_count = 0; 
-    // fu_int_t *fu_int = state->fu_int_list; 
-    // fu_int_stage_t *stage_int = fu_int->stage_list;
-    // while (stage_int != NULL){
-    //     printf("prev inst: %08x\n", stage_int->instr);
-    //     if (stage_int->current_cycle != -1){
-    //         if (destination_extract(stage_int->instr) == R1 
-    //             || destination_extract(stage_int->instr) == R2) {
-    //             stall_for_RAW_count += stage_int->num_cycles - stage_int->current_cycle;
-    //             printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
-    //         }
-    //     }
-    //     stage_int = stage_int->prev;
-    // }
-    // return stall_for_RAW_count;
     fu_int_t *fu_int = fu_int_list;
     fu_int_stage_t *stage = fu_int->stage_list;
     int j;
     //fu_int = state->fu_int_list;
     while (fu_int != NULL) {
-        printf("flag 1\n");
+        //printf("flag 1\n");
         j = 0;
         stage = fu_int->stage_list;
         while (stage != NULL) {
             if (stage->current_cycle != -1) {
                 printf("flag 2, j = %d\t", j);
                 printf("prev inst: %08x\n", stage->instr);
-                if (source_extract(inst) == 1){
-                    if (destination_extract(stage->instr) == R1) {
-                        stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
-                        printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
-                    }
-                } else if (source_extract(inst) == 2){
-                    if (destination_extract(stage->instr) == R1 
-                        || destination_extract(stage->instr) == R2) {
-                        stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
-                        printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
-                    }
+                if (check_dependancy(inst, stage->instr) == TRUE){
+                    stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
+                    printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
                 }
+                // if (source_extract(inst) == 1){
+                //     if (destination_extract(stage->instr) == R1) {
+                //         stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
+                //         printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
+                //     }
+                // } else if (source_extract(inst) == 2){
+                //     if (destination_extract(stage->instr) == R1 
+                //         || destination_extract(stage->instr) == R2) {
+                //         stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
+                //         printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
+                //     }
+                // }
             }
             j++;
             stage = stage->prev;
         }
         fu_int = fu_int->next;
     }
-    
-    if (destination_extract(state->int_wb.instr) == R1 
-        || destination_extract(state->int_wb.instr) == R2) {
-        stall_for_RAW_count = max(1, stall_for_RAW_count); 
+    // stall for the insturction that just got adavnced to write back
+    // if (destination_extract(state->int_wb.instr) == R1 
+    //     || destination_extract(state->int_wb.instr) == R2) {
+    //     stall_for_RAW_count = max(1, stall_for_RAW_count); 
+    //     printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
+    // }
+    if (check_dependancy(inst, state->int_wb.instr) == TRUE){
+        stall_for_RAW_count = max(1, stall_for_RAW_count);
         printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
     }
     printf("Return value of RAW finder: %d", stall_for_RAW_count);
@@ -348,9 +451,9 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
 
 int detect_hazard(state_t *state) {
     // check if there is a RAW hazard
-        // compare operands to destination 
+    // compare operands to destination 
     // check if there is a WAW hazard
-        // compare destination to destination 
+    // compare destination to destination 
     // check if there is a control hazard
     // check if there is a structural hazard
     // check if any FU exists
@@ -383,59 +486,9 @@ decode(state_t *state) {
     int immu = FIELD_IMMU(inst); 
     int offset = FIELD_OFFSET(inst);
     printf("opcode: %d, func: %d, r1: %d, r2: %d, r3: %d, imm: %d, immu: %d, offset: %d\n", opcode, func, r1, r2, r3, imm, immu, offset);
-    // int isconflict;
-    // printf("checking previous inst\n");
-    // fu_int_t *head = state->fu_int_list; 
-    // //fu_int_stage_t *head = state->fu_int_list->stage_list;
-    // while (head != NULL){
-    //     printf("prev inst: %08x\n", head->stage_list->instr);
-    //     isconflict = conflict(head->stage_list->instr, inst);
-    //     if (isconflict){
-    //         printf("There is a conflict\n");
-    //     } else {
-    //         printf("There is a NO conflict\n");
-    //     }
-        
-    //     head = head->next; 
-    // }
-    // printf("writing back: %08x\n", (&state->int_wb)->instr);
-    // isconflict = conflict((&state->int_wb)->instr, inst);
-    // if (isconflict){
-    //     printf("There is a conflict\n");
-    // } else {
-    //     printf("There is a NO conflict\n");
-    // }
-    
-    
-    
-    // int flag2; 
-    // const op_info_t *decode2;
-    // decode2 = decode_instr(testinst, &flag2); 
-    // const int group_num2 = decode2->fu_group_num;
-    // const int op2 = decode2->operation;
-    // const int data_type2 = decode2->data_type;
-    // const char *name2 = decode2->name;
-    // printf("group2: %d op2: %d type2: %d name2: %s\n", group_num2, op2, data_type2, name2);
 
     int stall_for_RAW = RAW_finder(state, inst, state->fu_int_list); 
     int stall = FALSE; 
-    //const op_info_t *op_info = decode_instr(inst, &use_imm); 
-    // switch(op_info->fu_group_num) {
-    //     case FU_GROUP_INT:
-    //         if (use_imm == 0) {
-    //             // check for RAW when not using immediate
-    //             if (stall_for_RAW > 0){
-    //                 stall = TRUE;
-    //             }
-    //         } else {
-    //             // check for RAW when using immediate 
-    //             if (stall_for_RAW > 0){
-    //                 stall = TRUE;
-    //             }
-    //         }
-    //     break; 
-    // }
-
     if (stall_for_RAW > 0) {
         stall = TRUE;
     }
@@ -470,10 +523,6 @@ decode(state_t *state) {
             break;
         }
     }
-    
-
-    
-    
 }
 
 
