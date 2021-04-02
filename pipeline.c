@@ -382,8 +382,6 @@ int check_dependancy(int curr_inst, int prev_inst){
                 break;
         }
         break;
-    // default:
-    //     return FALSE;
     }
     return FALSE;
     
@@ -391,15 +389,6 @@ int check_dependancy(int curr_inst, int prev_inst){
 
 int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
     printf("FINDING RAW\n");
-    int R1 = FIELD_R1(inst);
-    int R2 = FIELD_R2(inst);
-    int R3 = FIELD_R3(inst);
-    // int use_imm;
-    // const op_info_t *op_info_curr = decode_instr(inst, &use_imm);
-    // const op_info_t *op_info_prev = decode_instr(inst, &use_imm);
-    // op_info_curr->data_type;
-    // op_info_prev->data_type;
-
     int stall_for_RAW_count = 0; 
     fu_int_t *fu_int = fu_int_list;
     fu_int_stage_t *stage = fu_int->stage_list;
@@ -417,18 +406,6 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
                     stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
                     printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
                 }
-                // if (source_extract(inst) == 1){
-                //     if (destination_extract(stage->instr) == R1) {
-                //         stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
-                //         printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
-                //     }
-                // } else if (source_extract(inst) == 2){
-                //     if (destination_extract(stage->instr) == R1 
-                //         || destination_extract(stage->instr) == R2) {
-                //         stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
-                //         printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
-                //     }
-                // }
             }
             j++;
             stage = stage->prev;
@@ -436,11 +413,6 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
         fu_int = fu_int->next;
     }
     // stall for the insturction that just got adavnced to write back
-    // if (destination_extract(state->int_wb.instr) == R1 
-    //     || destination_extract(state->int_wb.instr) == R2) {
-    //     stall_for_RAW_count = max(1, stall_for_RAW_count); 
-    //     printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
-    // }
     if (check_dependancy(inst, state->int_wb.instr) == TRUE){
         stall_for_RAW_count = max(1, stall_for_RAW_count);
         printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
