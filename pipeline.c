@@ -25,7 +25,8 @@ perform_write(state_t * state, int instr, unsigned long pc) {
   int imm = FIELD_IMM(instr);
   int immu = FIELD_IMMU(instr); 
   int offset = FIELD_OFFSET(instr);
-  
+  int hex;
+    float f;
 
   switch(op_info->fu_group_num) {
     /******************************** INT */ 
@@ -93,6 +94,9 @@ perform_write(state_t * state, int instr, unsigned long pc) {
       switch (op_info->operation){
           case OPERATION_ADD:
             state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] + state->rf_fp.reg_fp[r2];
+            printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
+            printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
+            printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
             break;
           case OPERATION_SUB:
             state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] - state->rf_fp.reg_fp[r2];
@@ -103,10 +107,16 @@ perform_write(state_t * state, int instr, unsigned long pc) {
     /******************************** MULT */
     case FU_GROUP_MULT:
         state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] * state->rf_fp.reg_fp[r2];
+        printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
+        printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
+        printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
       break;
     /******************************** DIV */
     case FU_GROUP_DIV:
         state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] / state->rf_fp.reg_fp[r2];
+        printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
+        printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
+        printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
       break;
 
     /******************************** MEM */
@@ -118,7 +128,17 @@ perform_write(state_t * state, int instr, unsigned long pc) {
               state->rf_int.reg_int[r2].w = state->mem[state->rf_int.reg_int[r1].w + imm];
               break;
             case DATA_TYPE_F:
-              state->rf_fp.reg_fp[r2] = state->mem[state->rf_int.reg_int[r1].w + imm];
+                            
+                hex = (state->mem[state->rf_int.reg_int[r1].wu + imm + 3] << 24) 
+                    + (state->mem[state->rf_int.reg_int[r1].wu + imm + 2] << 16) 
+                    + (state->mem[state->rf_int.reg_int[r1].wu + imm + 1] << 8) 
+                    + (state->mem[state->rf_int.reg_int[r1].wu + imm + 0]);
+              //state->rf_fp.reg_fp[r2] = (float) state->mem[state->rf_int.reg_int[r1].w + imm + 3];
+              
+              f = *((float*)&hex);
+              state->rf_fp.reg_fp[r2] = f; 
+            //   printf("hex: %d\n", hex);
+            //   printf("float: %.6f\n", f);
               break;
             }
           break; 
@@ -128,7 +148,7 @@ perform_write(state_t * state, int instr, unsigned long pc) {
               state->mem[state->rf_int.reg_int[r1].w + imm] = state->rf_int.reg_int[r2].w;
               break;
             case DATA_TYPE_F:
-              state->mem[state->rf_int.reg_int[r1].w + imm] = state->rf_fp.reg_fp[r2];
+              state->mem[state->rf_int.reg_int[r1].w + imm] = (int)state->rf_fp.reg_fp[r2];
               break;
           }
           break;
@@ -137,8 +157,34 @@ perform_write(state_t * state, int instr, unsigned long pc) {
 
     /******************************** CONTROL */
     case FU_GROUP_BRANCH:
-  
-      break;
+        switch (op_info->operation) {
+            case OPERATION_J:
+                state->if_id.instr = 0;
+                printf("pc: %2x, offset: %d\n", state->pc, FIELD_OFFSET(instr));
+                state->pc = state->pc + FIELD_OFFSET(instr) - 4 ;
+                printf("new pc: %2x\n", state->pc);
+                break;
+            case OPERATION_JR:
+                state->pc = state->rf_int.reg_int[FIELD_R1(instr)].wu;
+                break;
+            case OPERATION_JAL:
+                state->rf_int.reg_int[31].wu = state->pc; 
+                state->pc = state->pc + FIELD_OFFSET(instr) + 4;
+                break;
+            case OPERATION_JALR:
+                state->rf_int.reg_int[31].wu = state->pc; 
+                state->pc = state->rf_int.reg_int[FIELD_R1(instr)].wu;
+                break;
+            case OPERATION_BEQZ:
+                state->pc = (state->rf_int.reg_int[FIELD_R1(instr)].wu == 0) ? (state->pc + FIELD_IMM(instr) - 4) : (state->pc);
+                break;
+            case OPERATION_BNEZ:
+                state->pc = (state->rf_int.reg_int[FIELD_R1(instr)].wu != 0) ? (state->pc + FIELD_IMM(instr) - 4) : (state->pc);
+                break;
+        }
+        printf("disabling control stall\n");
+        state->control_stall = FALSE; 
+        break;
 
     /******************************** HALT */
     case FU_GROUP_HALT:
@@ -164,11 +210,17 @@ writeback(state_t *state, int *num_insn) {
     printf("\n\nRUNNING WRITEBACK\n");
     printf("int_wb: %08x\n", state->int_wb.instr);
     perform_write(state, state->int_wb.instr, state->pc);
+    perform_write(state, state->fp_wb.instr, state->pc);
     if (state->int_wb.instr != 0){
         printf("INCREMENTING\n");
         (*num_insn)++;
     }
+    if (state->fp_wb.instr != 0){
+        printf("INCREMENTING\n");
+        (*num_insn)++;
+    }
     state->int_wb.instr = 0;
+    state->fp_wb.instr = 0;
      
     
 }
@@ -177,16 +229,20 @@ writeback(state_t *state, int *num_insn) {
 void
 execute(state_t *state) {
     printf("\n\nRUNNING EXECUTE\n");
-    printf("");
+    printf("fetch_lock: %d\n", state->fetch_lock);
     advance_fu_int(state->fu_int_list, &state->int_wb);
-    if((state->fetch_lock) && !(state->control_stall) && !(state->halt_activated)) {
+    advance_fu_fp(state->fu_add_list, &state->fp_wb);
+    advance_fu_fp(state->fu_mult_list, &state->fp_wb);
+    advance_fu_fp(state->fu_div_list, &state->fp_wb);
+    if((state->fetch_lock) && !(state->control_stall) && !(state->halt_activated) && !(state->structral_lock)) {
+        printf("case: fetch lock, no control stall, no halt activated\n");
         printf("stall counter: %d\n", state->stall_counter);
-        if ((state->stall_counter - 1) != 0 ) {
+        if ((state->stall_counter - 1) > 0 ) {
             state->stall_counter = state->stall_counter - 1;
             printf("decremented counter: %d\n", state->stall_counter);
         } else {
             if (state->halt_activated == FALSE) {
-                state->stall_counter = state->stall_counter - 1;
+                state->stall_counter = 0;
                 printf("decremented counter: %d\n", state->stall_counter);
                 state->fetch_lock = FALSE;
                 printf("fetch lock diabled\n");
@@ -194,13 +250,17 @@ execute(state_t *state) {
         }
     }
     if ((state->fetch_lock) && (state->halt_activated)) {
+        printf("case: fetch lock, halt activated\n");
         if (fu_int_done(state->fu_int_list) && fu_fp_done(state->fu_add_list)
             && fu_fp_done(state->fu_mult_list) && fu_fp_done(state->fu_div_list)
             && (state->int_wb.instr == 0) && (state->fp_wb.instr == 0)){
             state->end_simulation = TRUE;
         }
     }
-
+    if (state->fetch_lock && state->structral_lock){ 
+        state->fetch_lock = FALSE;
+        state->structral_lock = FALSE;
+    }
 }
 
 int destination_extract(int inst){
@@ -283,6 +343,12 @@ int get_latency(int inst){
 
 }
 
+int WAW_dependancy(int curr_inst, int prev_inst) {
+
+}
+int WAW_finder_loop() {
+
+}
 int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
     int stall_for_WAW_count = 0;
     int latency = get_latency(inst); 
@@ -298,7 +364,7 @@ int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
     return stall_for_WAW_count;
 }
 
-int check_dependancy(int curr_inst, int prev_inst){
+int RAW_dependancy(int curr_inst, int prev_inst){
     int source_type = source_extract(curr_inst);
     int dest_type = destination_extract(prev_inst);
     printf("dest type: %d, source type: %d\n", dest_type, source_type);
@@ -386,38 +452,74 @@ int check_dependancy(int curr_inst, int prev_inst){
     return FALSE;
     
 }
-
-int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
+int RAW_finder_loop (state_t* state, int inst, fu_fp_t *fu_fp_list){
+    int stall_for_RAW_count = 0; 
+    fu_fp_t *fu_fp = fu_fp_list;
+    fu_fp_stage_t *stage_fp = fu_fp->stage_list;
+    int j;
+    while (fu_fp != NULL) {
+        //printf("flag 1\n");
+        j = 0;
+        stage_fp = fu_fp->stage_list;
+        while (stage_fp != NULL) {
+            if (stage_fp->current_cycle != -1) {
+                printf("flag 2, j = %d\t", j);
+                printf("prev inst: %08x\n", stage_fp->instr);
+                if (RAW_dependancy(inst, stage_fp->instr) == TRUE){
+                    stall_for_RAW_count = stage_fp->num_cycles - stage_fp->current_cycle;
+                    printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
+                }
+            }
+            j++;
+            stage_fp = stage_fp->prev;
+        }
+        fu_fp = fu_fp->next;
+    }
+    return stall_for_RAW_count;
+    
+}
+int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add_list,
+    fu_fp_t *fu_mult_list, fu_fp_t *fu_div_list) {
     printf("FINDING RAW\n");
     int stall_for_RAW_count = 0; 
+
     fu_int_t *fu_int = fu_int_list;
-    fu_int_stage_t *stage = fu_int->stage_list;
+    fu_int_stage_t *stage_int = fu_int->stage_list;
     int j;
     //fu_int = state->fu_int_list;
     while (fu_int != NULL) {
         //printf("flag 1\n");
         j = 0;
-        stage = fu_int->stage_list;
-        while (stage != NULL) {
-            if (stage->current_cycle != -1) {
+        stage_int = fu_int->stage_list;
+        while (stage_int != NULL) {
+            if (stage_int->current_cycle != -1) {
                 printf("flag 2, j = %d\t", j);
-                printf("prev inst: %08x\n", stage->instr);
-                if (check_dependancy(inst, stage->instr) == TRUE){
-                    stall_for_RAW_count = stage->num_cycles - stage->current_cycle;
+                printf("prev inst: %08x\n", stage_int->instr);
+                if (RAW_dependancy(inst, stage_int->instr) == TRUE){
+                    stall_for_RAW_count = stage_int->num_cycles - stage_int->current_cycle;
                     printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
                 }
             }
             j++;
-            stage = stage->prev;
+            stage_int = stage_int->prev;
         }
         fu_int = fu_int->next;
     }
     // stall for the insturction that just got adavnced to write back
-    if (check_dependancy(inst, state->int_wb.instr) == TRUE){
+    if (RAW_dependancy(inst, state->int_wb.instr) == TRUE){
         stall_for_RAW_count = max(1, stall_for_RAW_count);
         printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
     }
-    printf("Return value of RAW finder: %d", stall_for_RAW_count);
+
+    // Doing the same for fp
+    stall_for_RAW_count = max(stall_for_RAW_count, RAW_finder_loop(state, inst, fu_add_list)); 
+    stall_for_RAW_count = max(stall_for_RAW_count, RAW_finder_loop(state, inst, fu_mult_list)); 
+    stall_for_RAW_count = max(stall_for_RAW_count, RAW_finder_loop(state, inst, fu_div_list)); 
+    if (RAW_dependancy(inst, state->fp_wb.instr) == TRUE){
+        stall_for_RAW_count = max(1, stall_for_RAW_count);
+        printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
+    }
+    printf("Return value of RAW finder: %d\n", stall_for_RAW_count);
     return stall_for_RAW_count;
 }
 
@@ -459,40 +561,84 @@ decode(state_t *state) {
     int offset = FIELD_OFFSET(inst);
     printf("opcode: %d, func: %d, r1: %d, r2: %d, r3: %d, imm: %d, immu: %d, offset: %d\n", opcode, func, r1, r2, r3, imm, immu, offset);
 
-    int stall_for_RAW = RAW_finder(state, inst, state->fu_int_list); 
+    int stall_for_RAW = RAW_finder(state, inst, state->fu_int_list, state->fu_add_list, state->fu_mult_list, state->fu_div_list); 
     int stall = FALSE; 
     if (stall_for_RAW > 0) {
         stall = TRUE;
     }
     if(stall) { 
         state->stalled_inst = state->if_id.instr;
+        // add max (WAW, RAW)
         state->stall_counter = stall_for_RAW; 
         state->fetch_lock = TRUE;
     } else { 
         switch (group_num) {
             case FU_GROUP_INT:
-                issue_fu_int(state->fu_int_list, inst);
-            break;
+                if (issue_fu_int(state->fu_int_list, inst) == -1) {
+                    printf("Structral Hazard Detected\n");
+                    state->fetch_lock = TRUE;
+                    state->structral_lock = TRUE;
+                } else {
+                    state->structral_lock = FALSE;
+                }
+                break;
             case FU_GROUP_ADD:
+                if (issue_fu_fp(state->fu_add_list, inst) == -1) {
+                    printf("Structral Hazard Detected\n");
+                    state->fetch_lock = TRUE;
+                    state->structral_lock = TRUE;
+                } else {
+                    state->structral_lock = FALSE;
+                }
+                break;
             case FU_GROUP_MULT:
+                if (issue_fu_fp(state->fu_mult_list, inst) == -1) {
+                    printf("Structral Hazard Detected\n");
+                    state->fetch_lock = TRUE;
+                    state->structral_lock = TRUE;
+                } else {
+                    state->structral_lock = FALSE;
+                }
+                break;
             case FU_GROUP_DIV:
-            break;
+                if (issue_fu_fp(state->fu_div_list, inst) == -1) {
+                    printf("Structral Hazard Detected\n");
+                    state->fetch_lock = TRUE;
+                    state->structral_lock = TRUE;
+                } else {
+                    state->structral_lock = FALSE;
+                }
+                break;
             case FU_GROUP_MEM:
-                issue_fu_int(state->fu_int_list, inst);
-            break;
+                if (issue_fu_int(state->fu_int_list, inst) == -1) {
+                    printf("Structral Hazard Detected\n");
+                    state->fetch_lock = TRUE;
+                    state->structral_lock = TRUE;
+                } else {
+                    state->structral_lock = FALSE;
+                }
+                break;
             case FU_GROUP_BRANCH:
-            break;
+                state->control_stall = TRUE;
+                //state->fetch_lock = TRUE;
+                if (issue_fu_int(state->fu_int_list, inst) == -1) {
+                    printf("Structral Hazard Detected\n");
+                    state->fetch_lock = TRUE;
+                } else {
+                    state->structral_lock = FALSE;
+                }
+                break;
             case FU_GROUP_NONE:
-            break;
+                break;
             case FU_GROUP_INVALID:
-            break;
+                break;
             case FU_GROUP_HALT:
                 // halt_activated 
                 state->halt_activated = TRUE;
                 // state->if_id.pc = 0;
                 // fetch lock 
                 state->fetch_lock = TRUE;
-            break;
+                break;
         }
     }
 }
@@ -500,16 +646,22 @@ decode(state_t *state) {
 
 void
 fetch(state_t *state) { 
-
-    if (state->fetch_lock != TRUE){
+    if (state->fetch_lock == FALSE){
         printf("\n\nRUNNING FETCH\n");
         int pc, inst;  
         pc = state->pc; 
         inst = (state->mem[pc + 3] << 24) + (state->mem[pc + 2] << 16) 
             + (state->mem[pc + 1] << 8) + (state->mem[pc + 0]);
         state->if_id.instr = inst;
-        state->if_id.pc = pc;;
+        state->if_id.pc = pc;
         state->pc = pc + 4;
+        printf("incrementing PC, PC at %8x\n",state->pc);
         printf("fetching: %08x\n", inst);
     }
+    if (state->control_stall == TRUE){
+        printf("control stalling\n");
+        state->fetch_lock = TRUE; 
+        printf("fetch_lock: %d\n", state->fetch_lock);
+    }
+    // control stall 
 }

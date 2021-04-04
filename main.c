@@ -48,7 +48,7 @@ main(int argc, char *argv[]) {
   printf("\n\n******************************************** START ********************************************\n");
   /* main sim loop */
   for (i = 0, num_insn = 0; state->end_simulation == FALSE; i++) {
-  //for (i = 0, num_insn = 0; i<8; i++) {
+  //for (i = 0, num_insn = 0; i<168; i++) {
     printf("\n\n*** CYCLE %d\n", i);
     print_state(state, data_count);
 
