@@ -10,7 +10,6 @@
 #include "fu.h"
 #include "pipeline.h"
 
-
 void
 perform_write(state_t * state, int instr, unsigned long pc) {
   int use_imm;
@@ -225,7 +224,6 @@ writeback(state_t *state, int *num_insn) {
     
 }
 
-
 void
 execute(state_t *state) {
     printf("\n\nRUNNING EXECUTE\n");
@@ -344,15 +342,134 @@ int get_latency(int inst){
 }
 
 int WAW_dependancy(int curr_inst, int prev_inst) {
-
+    int dest_prev = destination_extract(prev_inst);
+    int dest_curr = destination_extract(curr_inst);
+    switch (dest_curr)
+    {
+    case INT_DEST_AT_2:
+        switch (dest_prev)
+        {
+        case INT_DEST_AT_2:
+            if (FIELD_R2(curr_inst) == FIELD_R2(prev_inst)) { return TRUE; }
+            break;
+        case INT_DEST_AT_3:
+            if (FIELD_R2(curr_inst) == FIELD_R3(prev_inst)) { return TRUE; }
+            break;
+        case FP_DEST_AT_2:
+        case FP_DEST_AT_3:
+            return FALSE;
+            break;
+        }
+        break;
+    case INT_DEST_AT_3:
+        switch (dest_prev)
+        {
+        case INT_DEST_AT_2:
+            if (FIELD_R3(curr_inst) == FIELD_R2(prev_inst)) { return TRUE; }
+            break;
+        case INT_DEST_AT_3:
+            if (FIELD_R3(curr_inst) == FIELD_R3(prev_inst)) { return TRUE; }
+            break;
+        case FP_DEST_AT_2:
+        case FP_DEST_AT_3:
+            return FALSE;
+            break;
+        }
+        break;
+    case FP_DEST_AT_2:
+        switch (dest_prev)
+        {
+        case INT_DEST_AT_2:
+        case INT_DEST_AT_3:
+            return FALSE;
+            break;
+        case FP_DEST_AT_2:
+            if (FIELD_R2(curr_inst) == FIELD_R2(prev_inst)) { return TRUE; }
+            break;
+        case FP_DEST_AT_3:
+            if (FIELD_R2(curr_inst) == FIELD_R3(prev_inst)) { return TRUE; }
+            break;
+        }
+        break;
+    case FP_DEST_AT_3:
+        switch (dest_prev)
+        {
+        case INT_DEST_AT_2:
+        case INT_DEST_AT_3:
+            return FALSE;
+            break;
+        case FP_DEST_AT_2:
+            if (FIELD_R3(curr_inst) == FIELD_R2(prev_inst)) { return TRUE; }
+            break;
+        case FP_DEST_AT_3:
+            if (FIELD_R3(curr_inst) == FIELD_R3(prev_inst)) { return TRUE; }
+            break;
+        }
+        break;
+    }
+    return FALSE;
 }
-int WAW_finder_loop() {
 
+int WAW_finder_loop(state_t* state, int inst, fu_fp_t *fu_fp_list) {
+    int stall_for_WAW_count = 0; 
+    fu_fp_t *fu_fp = fu_fp_list;
+    fu_fp_stage_t *stage_fp = fu_fp->stage_list;
+    int j;
+    while (fu_fp != NULL) {
+        //printf("flag 1\n");
+        j = 0;
+        stage_fp = fu_fp->stage_list;
+        while (stage_fp != NULL) {
+            if (stage_fp->current_cycle != -1) {
+                printf("flag 2, j = %d\t", j);
+                printf("prev inst: %08x\n", stage_fp->instr);
+                if (WAW_dependancy(inst, stage_fp->instr) == TRUE){
+                    stall_for_WAW_count = get_latency(inst) - (stage_fp->num_cycles - stage_fp->current_cycle);
+                    printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
+                }
+            }
+            j++;
+            stage_fp = stage_fp->prev;
+        }
+        fu_fp = fu_fp->next;
+    }
+    return stall_for_WAW_count;
 }
-int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
+
+int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add_list,
+    fu_fp_t *fu_mult_list, fu_fp_t *fu_div_list) {
+    printf("FINDING WAW\n");
     int stall_for_WAW_count = 0;
     int latency = get_latency(inst); 
-    printf("FINDING WAW\n");
+    fu_int_t *fu_int = fu_int_list;
+    fu_int_stage_t *stage_int = fu_int->stage_list;
+    int j;
+    while (fu_int != NULL) {
+        //printf("flag 1\n");
+        j = 0;
+        stage_int = fu_int->stage_list;
+        while (stage_int != NULL) {
+            if (stage_int->current_cycle != -1) {
+                printf("flag 2, j = %d\t", j);
+                printf("prev inst: %08x\n", stage_int->instr);
+                if (WAW_dependancy(inst, stage_int->instr) == TRUE){
+                    stall_for_WAW_count = min(stage_int->num_cycles, (stage_int->num_cycles - stage_int->current_cycle));
+                    printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
+                }
+            }
+            j++;
+            stage_int = stage_int->prev;
+        }
+        fu_int = fu_int->next;
+    }
+    if (WAW_dependancy(inst, state->int_wb.instr) == TRUE){
+        stall_for_WAW_count = max(1, stall_for_WAW_count);
+        printf("WAW DETECTED AT WB, stall count: %d\n", stall_for_WAW_count);
+    }
+    // Doing the same for fp
+    stall_for_WAW_count = max(stall_for_WAW_count, WAW_finder_loop(state, inst, fu_add_list)); 
+    stall_for_WAW_count = max(stall_for_WAW_count, WAW_finder_loop(state, inst, fu_mult_list)); 
+    stall_for_WAW_count = max(stall_for_WAW_count, WAW_finder_loop(state, inst, fu_div_list));
     // same while loop stuff 
     // replace the insides of "if (stage->current_cycle != -1)" with the following: 
     // if (destination_extract(stage->instr) == destination_extract(inst)){
@@ -361,6 +478,7 @@ int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list) {
     //         printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
     //     }        
     // }
+    printf("Return value of WAW finder: %d\n", stall_for_WAW_count);
     return stall_for_WAW_count;
 }
 
@@ -452,6 +570,7 @@ int RAW_dependancy(int curr_inst, int prev_inst){
     return FALSE;
     
 }
+
 int RAW_finder_loop (state_t* state, int inst, fu_fp_t *fu_fp_list){
     int stall_for_RAW_count = 0; 
     fu_fp_t *fu_fp = fu_fp_list;
@@ -478,6 +597,7 @@ int RAW_finder_loop (state_t* state, int inst, fu_fp_t *fu_fp_list){
     return stall_for_RAW_count;
     
 }
+
 int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add_list,
     fu_fp_t *fu_mult_list, fu_fp_t *fu_div_list) {
     printf("FINDING RAW\n");
@@ -521,18 +641,6 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add
     }
     printf("Return value of RAW finder: %d\n", stall_for_RAW_count);
     return stall_for_RAW_count;
-}
-
-int detect_hazard(state_t *state) {
-    // check if there is a RAW hazard
-    // compare operands to destination 
-    // check if there is a WAW hazard
-    // compare destination to destination 
-    // check if there is a control hazard
-    // check if there is a structural hazard
-    // check if any FU exists
-    // if there are any hazards, stall until everything is resolved
-    // otherwise, issue the instruction
 }
 
 int
@@ -642,7 +750,6 @@ decode(state_t *state) {
         }
     }
 }
-
 
 void
 fetch(state_t *state) { 

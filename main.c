@@ -61,8 +61,6 @@ main(int argc, char *argv[]) {
   }
   printf("\n\n*** CYCLE %d\n", i);
   print_state(state, data_count);
-  // final increment for the halt insctruction
-  num_insn++;
   printf("SIMULATION COMPLETE!\n");
   printf("EXECUTED %d INSTRUCTIONS IN %d CYCLES\n", num_insn, i);
   printf("CPI:  %.2f\n", (float)i / (float)num_insn);
