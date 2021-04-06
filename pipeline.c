@@ -10,6 +10,10 @@
 #include "fu.h"
 #include "pipeline.h"
 
+/*
+This function takes a state pointer, instruction and pc.
+The function performs the operation of the instruction and changes the state struct
+*/
 void
 perform_write(state_t * state, int instr, unsigned long pc) {
   int use_imm;
@@ -93,9 +97,9 @@ perform_write(state_t * state, int instr, unsigned long pc) {
       switch (op_info->operation){
           case OPERATION_ADD:
             state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] + state->rf_fp.reg_fp[r2];
-            printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
-            printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
-            printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
+            //printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
+            //printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
+            //printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
             break;
           case OPERATION_SUB:
             state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] - state->rf_fp.reg_fp[r2];
@@ -106,16 +110,16 @@ perform_write(state_t * state, int instr, unsigned long pc) {
     /******************************** MULT */
     case FU_GROUP_MULT:
         state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] * state->rf_fp.reg_fp[r2];
-        printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
-        printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
-        printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
+        //printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
+        //printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
+        //printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
       break;
     /******************************** DIV */
     case FU_GROUP_DIV:
         state->rf_fp.reg_fp[r3] = state->rf_fp.reg_fp[r1] / state->rf_fp.reg_fp[r2];
-        printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
-        printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
-        printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
+        //printf("r1: %.6f\n", state->rf_fp.reg_fp[r1]);
+        //printf("r2: %.6f\n", state->rf_fp.reg_fp[r2]);
+        //printf("r3: %.6f\n", state->rf_fp.reg_fp[r3]);
       break;
 
     /******************************** MEM */
@@ -136,8 +140,8 @@ perform_write(state_t * state, int instr, unsigned long pc) {
               
               f = *((float*)&hex);
               state->rf_fp.reg_fp[r2] = f; 
-            //   printf("hex: %d\n", hex);
-            //   printf("float: %.6f\n", f);
+            //   //printf("hex: %d\n", hex);
+            //   //printf("float: %.6f\n", f);
               break;
             }
           break; 
@@ -159,16 +163,16 @@ perform_write(state_t * state, int instr, unsigned long pc) {
         switch (op_info->operation) {
             case OPERATION_J:
                 state->if_id.instr = 0;
-                printf("pc: %2x, offset: %d\n", state->pc, FIELD_OFFSET(instr));
+                //printf("pc: %2x, offset: %d\n", state->pc, FIELD_OFFSET(instr));
                 state->pc = state->pc + FIELD_OFFSET(instr) - 4 ;
-                printf("new pc: %2x\n", state->pc);
+                //printf("new pc: %2x\n", state->pc);
                 break;
             case OPERATION_JR:
                 state->pc = state->rf_int.reg_int[FIELD_R1(instr)].wu;
                 break;
             case OPERATION_JAL:
                 state->rf_int.reg_int[31].wu = state->pc; 
-                state->pc = state->pc + FIELD_OFFSET(instr) + 4;
+                state->pc = state->pc + FIELD_OFFSET(instr) - 4;
                 break;
             case OPERATION_JALR:
                 state->rf_int.reg_int[31].wu = state->pc; 
@@ -181,7 +185,7 @@ perform_write(state_t * state, int instr, unsigned long pc) {
                 state->pc = (state->rf_int.reg_int[FIELD_R1(instr)].wu != 0) ? (state->pc + FIELD_IMM(instr) - 4) : (state->pc);
                 break;
         }
-        printf("disabling control stall\n");
+        //printf("disabling control stall\n");
         state->control_stall = FALSE; 
         break;
 
@@ -204,18 +208,23 @@ perform_write(state_t * state, int instr, unsigned long pc) {
 int max(int x, int y){ if (x >= y){ return x; } else { return y; } }
 int min(int x, int y){ if (x <= y){ return x; } else { return y; } }
 
+/*
+The function takes state pointer and a num_insn pointer.
+The function pass the instruction in the write back to the perform_write function
+The function then increments the value of the num_insn pointer
+*/
 void
 writeback(state_t *state, int *num_insn) {
-    printf("\n\nRUNNING WRITEBACK\n");
-    printf("int_wb: %08x\n", state->int_wb.instr);
+    //printf("\n\nRUNNING WRITEBACK\n");
+    //printf("int_wb: %08x\n", state->int_wb.instr);
     perform_write(state, state->int_wb.instr, state->pc);
     perform_write(state, state->fp_wb.instr, state->pc);
     if (state->int_wb.instr != 0){
-        printf("INCREMENTING\n");
+        //printf("INCREMENTING\n");
         (*num_insn)++;
     }
     if (state->fp_wb.instr != 0){
-        printf("INCREMENTING\n");
+        //printf("INCREMENTING\n");
         (*num_insn)++;
     }
     state->int_wb.instr = 0;
@@ -224,31 +233,36 @@ writeback(state_t *state, int *num_insn) {
     
 }
 
+/*
+The function takes a state pointer.
+The function advances all functional units. 
+The function resolves various hazards.
+*/
 void
 execute(state_t *state) {
-    printf("\n\nRUNNING EXECUTE\n");
-    printf("fetch_lock: %d\n", state->fetch_lock);
+    //printf("\n\nRUNNING EXECUTE\n");
+    //printf("fetch_lock: %d\n", state->fetch_lock);
     advance_fu_int(state->fu_int_list, &state->int_wb);
     advance_fu_fp(state->fu_add_list, &state->fp_wb);
     advance_fu_fp(state->fu_mult_list, &state->fp_wb);
     advance_fu_fp(state->fu_div_list, &state->fp_wb);
     if((state->fetch_lock) && !(state->control_stall) && !(state->halt_activated) && !(state->structral_lock)) {
-        printf("case: fetch lock, no control stall, no halt activated\n");
-        printf("stall counter: %d\n", state->stall_counter);
+        //printf("case: fetch lock, no control stall, no halt activated\n");
+        //printf("stall counter: %d\n", state->stall_counter);
         if ((state->stall_counter - 1) > 0 ) {
             state->stall_counter = state->stall_counter - 1;
-            printf("decremented counter: %d\n", state->stall_counter);
+            //printf("decremented counter: %d\n", state->stall_counter);
         } else {
             if (state->halt_activated == FALSE) {
                 state->stall_counter = 0;
-                printf("decremented counter: %d\n", state->stall_counter);
+                //printf("decremented counter: %d\n", state->stall_counter);
                 state->fetch_lock = FALSE;
-                printf("fetch lock diabled\n");
+                //printf("fetch lock diabled\n");
             }
         }
     }
     if ((state->fetch_lock) && (state->halt_activated)) {
-        printf("case: fetch lock, halt activated\n");
+        //printf("case: fetch lock, halt activated\n");
         if (fu_int_done(state->fu_int_list) && fu_fp_done(state->fu_add_list)
             && fu_fp_done(state->fu_mult_list) && fu_fp_done(state->fu_div_list)
             && (state->int_wb.instr == 0) && (state->fp_wb.instr == 0)){
@@ -261,6 +275,11 @@ execute(state_t *state) {
     }
 }
 
+/*
+The function takes an instruction.
+The function returns the type of destination register that the instruction have 
+The types can be found on the top of pipeline.h
+*/
 int destination_extract(int inst){
     int use_imm;
     const op_info_t *op_info = decode_instr(inst, &use_imm); 
@@ -285,7 +304,12 @@ int destination_extract(int inst){
 
 } 
 
-// return how many sources it reads from (return 1 for only r1, reutrn 2 for r1 and r2) 
+/*
+The function takes an instruction.
+The function returns the type of source register that the instruction have
+The types can be found on the top of pipeline.h
+*/
+ 
 int source_extract(int inst){
     int use_imm;
     const op_info_t *op_info = decode_instr(inst, &use_imm); 
@@ -316,6 +340,10 @@ int source_extract(int inst){
 
 } 
 
+/*
+The function takes an instruction.
+The function returns the latency of the instruction. It is used for WAW detection
+*/
 int get_latency(int inst){
     int use_imm;
     const op_info_t *op_info = decode_instr(inst, &use_imm);
@@ -341,6 +369,11 @@ int get_latency(int inst){
 
 }
 
+/*
+The function takes two instructions.
+The function checks whether the two instructions have WAW dependancy
+Returns true is there is a dependancy, false otherwise
+*/
 int WAW_dependancy(int curr_inst, int prev_inst) {
     int dest_prev = destination_extract(prev_inst);
     int dest_curr = destination_extract(curr_inst);
@@ -410,22 +443,26 @@ int WAW_dependancy(int curr_inst, int prev_inst) {
     return FALSE;
 }
 
+/*
+The function takes a state pointer, an instruction and a floating point fu
+The function checks whether the instruction have a WAW dependancy with any of the instruction in the floating point fu
+*/
 int WAW_finder_loop(state_t* state, int inst, fu_fp_t *fu_fp_list) {
     int stall_for_WAW_count = 0; 
     fu_fp_t *fu_fp = fu_fp_list;
     fu_fp_stage_t *stage_fp = fu_fp->stage_list;
     int j;
     while (fu_fp != NULL) {
-        //printf("flag 1\n");
+        ////printf("flag 1\n");
         j = 0;
         stage_fp = fu_fp->stage_list;
         while (stage_fp != NULL) {
             if (stage_fp->current_cycle != -1) {
-                printf("flag 2, j = %d\t", j);
-                printf("prev inst: %08x\n", stage_fp->instr);
+                //printf("flag 2, j = %d\t", j);
+                //printf("prev inst: %08x\n", stage_fp->instr);
                 if (WAW_dependancy(inst, stage_fp->instr) == TRUE){
                     stall_for_WAW_count = get_latency(inst) - (stage_fp->num_cycles - stage_fp->current_cycle);
-                    printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
+                    //printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
                 }
             }
             j++;
@@ -436,25 +473,29 @@ int WAW_finder_loop(state_t* state, int inst, fu_fp_t *fu_fp_list) {
     return stall_for_WAW_count;
 }
 
+/*
+The function takes a state pointer, an instruction and pointers to all the functional units. 
+The function is the parent function that checks whether the instruction has WAW dependacy with all of the instructions in all of the functional units 
+*/
 int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add_list,
     fu_fp_t *fu_mult_list, fu_fp_t *fu_div_list) {
-    printf("FINDING WAW\n");
+    //printf("FINDING WAW\n");
     int stall_for_WAW_count = 0;
     int latency = get_latency(inst); 
     fu_int_t *fu_int = fu_int_list;
     fu_int_stage_t *stage_int = fu_int->stage_list;
     int j;
     while (fu_int != NULL) {
-        //printf("flag 1\n");
+        ////printf("flag 1\n");
         j = 0;
         stage_int = fu_int->stage_list;
         while (stage_int != NULL) {
             if (stage_int->current_cycle != -1) {
-                printf("flag 2, j = %d\t", j);
-                printf("prev inst: %08x\n", stage_int->instr);
+                //printf("flag 2, j = %d\t", j);
+                //printf("prev inst: %08x\n", stage_int->instr);
                 if (WAW_dependancy(inst, stage_int->instr) == TRUE){
                     stall_for_WAW_count = min(stage_int->num_cycles, (stage_int->num_cycles - stage_int->current_cycle));
-                    printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
+                    //printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
                 }
             }
             j++;
@@ -464,40 +505,37 @@ int WAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add
     }
     if (WAW_dependancy(inst, state->int_wb.instr) == TRUE){
         stall_for_WAW_count = max(1, stall_for_WAW_count);
-        printf("WAW DETECTED AT WB, stall count: %d\n", stall_for_WAW_count);
+        //printf("WAW DETECTED AT WB, stall count: %d\n", stall_for_WAW_count);
     }
     // Doing the same for fp
     stall_for_WAW_count = max(stall_for_WAW_count, WAW_finder_loop(state, inst, fu_add_list)); 
     stall_for_WAW_count = max(stall_for_WAW_count, WAW_finder_loop(state, inst, fu_mult_list)); 
     stall_for_WAW_count = max(stall_for_WAW_count, WAW_finder_loop(state, inst, fu_div_list));
-    // same while loop stuff 
-    // replace the insides of "if (stage->current_cycle != -1)" with the following: 
-    // if (destination_extract(stage->instr) == destination_extract(inst)){
-    //     if (((stage->num_cycles - stage->current_cycle) - latency) > 0){
-    //         stall_for_WAW_count += ((stage->num_cycles - stage->current_cycle) - latency);
-    //         printf("WAW DETECTED AT EX, stall count: %d\n", stall_for_WAW_count);
-    //     }        
-    // }
-    printf("Return value of WAW finder: %d\n", stall_for_WAW_count);
+    //printf("Return value of WAW finder: %d\n", stall_for_WAW_count);
     return stall_for_WAW_count;
 }
 
+/*
+The function takes two instructions.
+The function checks whether the two instructions have RAW dependancy
+Returns true is there is a dependancy, false otherwise
+*/
 int RAW_dependancy(int curr_inst, int prev_inst){
     int source_type = source_extract(curr_inst);
     int dest_type = destination_extract(prev_inst);
-    printf("dest type: %d, source type: %d\n", dest_type, source_type);
+    //printf("dest type: %d, source type: %d\n", dest_type, source_type);
     switch (source_type)
     {
     case INT_SOURCE_ONE:
         switch (dest_type){
             case INT_DEST_AT_2:
-                printf("INT_SOURCE_ONE and INT_DEST_AT_2\n");
-                printf("fields: %d, %d\n", FIELD_R2(prev_inst), FIELD_R1(curr_inst));
+                //printf("INT_SOURCE_ONE and INT_DEST_AT_2\n");
+                //printf("fields: %d, %d\n", FIELD_R2(prev_inst), FIELD_R1(curr_inst));
                 if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
                 break;
             case INT_DEST_AT_3:
-                printf("INT_SOURCE_ONE and INT_DEST_AT_3\n");
-                printf("fields: %d, %d\n", FIELD_R3(prev_inst), FIELD_R1(curr_inst));
+                //printf("INT_SOURCE_ONE and INT_DEST_AT_3\n");
+                //printf("fields: %d, %d\n", FIELD_R3(prev_inst), FIELD_R1(curr_inst));
                 if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst)){ return TRUE; }
                 break;
             case FP_DEST_AT_2:
@@ -509,11 +547,11 @@ int RAW_dependancy(int curr_inst, int prev_inst){
     case INT_SOURCE_TWO:
         switch (dest_type){
             case INT_DEST_AT_2:
-                printf("INT_SOURCE_TWO and INT_DEST_AT_2\n");
+                //printf("INT_SOURCE_TWO and INT_DEST_AT_2\n");
                 if (FIELD_R2(prev_inst) == FIELD_R1(curr_inst) || FIELD_R2(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
                 break;
             case INT_DEST_AT_3:
-                printf("INT_SOURCE_TWO and INT_DEST_AT_3\n");
+                //printf("INT_SOURCE_TWO and INT_DEST_AT_3\n");
                 if (FIELD_R3(prev_inst) == FIELD_R1(curr_inst) || FIELD_R3(prev_inst) == FIELD_R2(curr_inst)){ return TRUE; }
                 break;
             case FP_DEST_AT_2:
@@ -571,22 +609,26 @@ int RAW_dependancy(int curr_inst, int prev_inst){
     
 }
 
+/*
+The function takes a state pointer, an instruction and a floating point fu
+The function checks whether the instruction have a RAW dependancy with any of the instruction in the floating point fu
+*/
 int RAW_finder_loop (state_t* state, int inst, fu_fp_t *fu_fp_list){
     int stall_for_RAW_count = 0; 
     fu_fp_t *fu_fp = fu_fp_list;
     fu_fp_stage_t *stage_fp = fu_fp->stage_list;
     int j;
     while (fu_fp != NULL) {
-        //printf("flag 1\n");
+        ////printf("flag 1\n");
         j = 0;
         stage_fp = fu_fp->stage_list;
         while (stage_fp != NULL) {
             if (stage_fp->current_cycle != -1) {
-                printf("flag 2, j = %d\t", j);
-                printf("prev inst: %08x\n", stage_fp->instr);
+                //printf("flag 2, j = %d\t", j);
+                //printf("prev inst: %08x\n", stage_fp->instr);
                 if (RAW_dependancy(inst, stage_fp->instr) == TRUE){
                     stall_for_RAW_count = stage_fp->num_cycles - stage_fp->current_cycle;
-                    printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
+                    //printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
                 }
             }
             j++;
@@ -598,9 +640,12 @@ int RAW_finder_loop (state_t* state, int inst, fu_fp_t *fu_fp_list){
     
 }
 
+/*
+The function takes a state pointer, an instruction and pointers to all the functional units. 
+The function is the parent function that checks whether the instruction has RAW dependacy with all of the instructions in all of the functional units*/
 int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add_list,
     fu_fp_t *fu_mult_list, fu_fp_t *fu_div_list) {
-    printf("FINDING RAW\n");
+    //printf("FINDING RAW\n");
     int stall_for_RAW_count = 0; 
 
     fu_int_t *fu_int = fu_int_list;
@@ -608,16 +653,16 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add
     int j;
     //fu_int = state->fu_int_list;
     while (fu_int != NULL) {
-        //printf("flag 1\n");
+        ////printf("flag 1\n");
         j = 0;
         stage_int = fu_int->stage_list;
         while (stage_int != NULL) {
             if (stage_int->current_cycle != -1) {
-                printf("flag 2, j = %d\t", j);
-                printf("prev inst: %08x\n", stage_int->instr);
+                //printf("flag 2, j = %d\t", j);
+                //printf("prev inst: %08x\n", stage_int->instr);
                 if (RAW_dependancy(inst, stage_int->instr) == TRUE){
                     stall_for_RAW_count = stage_int->num_cycles - stage_int->current_cycle;
-                    printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
+                    //printf("RAW DETECTED AT EX, stall count: %d\n", stall_for_RAW_count);
                 }
             }
             j++;
@@ -628,7 +673,7 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add
     // stall for the insturction that just got adavnced to write back
     if (RAW_dependancy(inst, state->int_wb.instr) == TRUE){
         stall_for_RAW_count = max(1, stall_for_RAW_count);
-        printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
+        //printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
     }
 
     // Doing the same for fp
@@ -637,27 +682,33 @@ int RAW_finder (state_t* state, int inst, fu_int_t *fu_int_list, fu_fp_t *fu_add
     stall_for_RAW_count = max(stall_for_RAW_count, RAW_finder_loop(state, inst, fu_div_list)); 
     if (RAW_dependancy(inst, state->fp_wb.instr) == TRUE){
         stall_for_RAW_count = max(1, stall_for_RAW_count);
-        printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
+        //printf("RAW DETECTED AT WB, stall count: %d\n", stall_for_RAW_count);
     }
-    printf("Return value of RAW finder: %d\n", stall_for_RAW_count);
+    //printf("Return value of RAW finder: %d\n", stall_for_RAW_count);
     return stall_for_RAW_count;
 }
 
+/*
+The function takes a state pointer. 
+The function decode the instruction in the if_id struct.
+The function determines if any hazard exists by calling the prevous function.
+If there are any hazard, the function will stall according to the hazard. 
+*/
 int
 decode(state_t *state) {
-    printf("\n\nRUNNING DECODE\n");
+    //printf("\n\nRUNNING DECODE\n");
     int inst = state->if_id.instr;
     int pc = state->if_id.pc;
     int use_imm; 
-    //printf("%08x\n", pc);
-    printf("Decoding: %08x\n", inst);
+    ////printf("%08x\n", pc);
+    //printf("Decoding: %08x\n", inst);
 
     const op_info_t *op_info = decode_instr(inst, &use_imm);  
     const int group_num = op_info->fu_group_num;
     const int op = op_info->operation;
     const int data_type = op_info->data_type;
     const char *name = op_info->name;
-    printf("group: %d, op: %d, type: %d, name: %s, use_imm: %d\n", group_num, op, data_type , name, use_imm);
+    //printf("group: %d, op: %d, type: %d, name: %s, use_imm: %d\n", group_num, op, data_type , name, use_imm);
     
     int opcode = FIELD_OPCODE(inst);
     int func = FIELD_FUNC(inst);
@@ -667,7 +718,7 @@ decode(state_t *state) {
     int imm = FIELD_IMM(inst);
     int immu = FIELD_IMMU(inst); 
     int offset = FIELD_OFFSET(inst);
-    printf("opcode: %d, func: %d, r1: %d, r2: %d, r3: %d, imm: %d, immu: %d, offset: %d\n", opcode, func, r1, r2, r3, imm, immu, offset);
+    //printf("opcode: %d, func: %d, r1: %d, r2: %d, r3: %d, imm: %d, immu: %d, offset: %d\n", opcode, func, r1, r2, r3, imm, immu, offset);
 
     int stall_for_RAW = RAW_finder(state, inst, state->fu_int_list, state->fu_add_list, state->fu_mult_list, state->fu_div_list); 
     int stall = FALSE; 
@@ -683,7 +734,7 @@ decode(state_t *state) {
         switch (group_num) {
             case FU_GROUP_INT:
                 if (issue_fu_int(state->fu_int_list, inst) == -1) {
-                    printf("Structral Hazard Detected\n");
+                    //printf("Structral Hazard Detected\n");
                     state->fetch_lock = TRUE;
                     state->structral_lock = TRUE;
                 } else {
@@ -692,7 +743,7 @@ decode(state_t *state) {
                 break;
             case FU_GROUP_ADD:
                 if (issue_fu_fp(state->fu_add_list, inst) == -1) {
-                    printf("Structral Hazard Detected\n");
+                    //printf("Structral Hazard Detected\n");
                     state->fetch_lock = TRUE;
                     state->structral_lock = TRUE;
                 } else {
@@ -701,7 +752,7 @@ decode(state_t *state) {
                 break;
             case FU_GROUP_MULT:
                 if (issue_fu_fp(state->fu_mult_list, inst) == -1) {
-                    printf("Structral Hazard Detected\n");
+                    //printf("Structral Hazard Detected\n");
                     state->fetch_lock = TRUE;
                     state->structral_lock = TRUE;
                 } else {
@@ -710,7 +761,7 @@ decode(state_t *state) {
                 break;
             case FU_GROUP_DIV:
                 if (issue_fu_fp(state->fu_div_list, inst) == -1) {
-                    printf("Structral Hazard Detected\n");
+                    //printf("Structral Hazard Detected\n");
                     state->fetch_lock = TRUE;
                     state->structral_lock = TRUE;
                 } else {
@@ -719,7 +770,7 @@ decode(state_t *state) {
                 break;
             case FU_GROUP_MEM:
                 if (issue_fu_int(state->fu_int_list, inst) == -1) {
-                    printf("Structral Hazard Detected\n");
+                    //printf("Structral Hazard Detected\n");
                     state->fetch_lock = TRUE;
                     state->structral_lock = TRUE;
                 } else {
@@ -730,7 +781,7 @@ decode(state_t *state) {
                 state->control_stall = TRUE;
                 //state->fetch_lock = TRUE;
                 if (issue_fu_int(state->fu_int_list, inst) == -1) {
-                    printf("Structral Hazard Detected\n");
+                    //printf("Structral Hazard Detected\n");
                     state->fetch_lock = TRUE;
                 } else {
                     state->structral_lock = FALSE;
@@ -751,10 +802,15 @@ decode(state_t *state) {
     }
 }
 
+/*
+The function takes a state pointer
+The function fetches the next instruction in memory if there is not hazard/ stall
+The function would then put the fetched instruction into the if_id struct
+*/
 void
 fetch(state_t *state) { 
     if (state->fetch_lock == FALSE){
-        printf("\n\nRUNNING FETCH\n");
+        //printf("\n\nRUNNING FETCH\n");
         int pc, inst;  
         pc = state->pc; 
         inst = (state->mem[pc + 3] << 24) + (state->mem[pc + 2] << 16) 
@@ -762,13 +818,13 @@ fetch(state_t *state) {
         state->if_id.instr = inst;
         state->if_id.pc = pc;
         state->pc = pc + 4;
-        printf("incrementing PC, PC at %8x\n",state->pc);
-        printf("fetching: %08x\n", inst);
+        //printf("incrementing PC, PC at %8x\n",state->pc);
+        //printf("fetching: %08x\n", inst);
     }
     if (state->control_stall == TRUE){
-        printf("control stalling\n");
+        //printf("control stalling\n");
         state->fetch_lock = TRUE; 
-        printf("fetch_lock: %d\n", state->fetch_lock);
+        //printf("fetch_lock: %d\n", state->fetch_lock);
     }
     // control stall 
 }

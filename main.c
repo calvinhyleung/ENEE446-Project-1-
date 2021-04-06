@@ -45,7 +45,7 @@ main(int argc, char *argv[]) {
 
   fclose(bin_file);
   fclose(fu_file);
-  printf("\n\n******************************************** START ********************************************\n");
+  //printf("\n\n******************************************** START ********************************************\n");
   /* main sim loop */
   for (i = 0, num_insn = 0; state->end_simulation == FALSE; i++) {
   //for (i = 0, num_insn = 0; i<168; i++) {
